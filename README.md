@@ -29,7 +29,7 @@ Create a `.env` file in this directory:
 ```
 PIA_user=your_pia_username
 PIA_pass=your_pia_password
-region=US Montana
+region=your_pia_server_region
 ```
 
 `region` must match a PIA region name from the live server list. A unique partial name such as `Montana` can also work when it matches only one region.
