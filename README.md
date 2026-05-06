@@ -1,4 +1,8 @@
-# pia-wg modernized fork
+# pia-wg fork for 2026 compatibility
+
+The original project got archived when it stopped working so I updated it for current compatibility
+
+
 A WireGuard configuration utility for Private Internet Access.
 
 This fork generates a Windows-importable WireGuard config while keeping TLS verification enabled. It no longer uses `requests_toolbelt` or the old Python `HostHeaderSSLAdapter`.
