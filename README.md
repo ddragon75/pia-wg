@@ -1,53 +1,83 @@
-# pia-wg
-A WireGuard configuration utility for Private Internet Access
+# pia-wg modernized fork
+A WireGuard configuration utility for Private Internet Access.
 
-This is a Python utility that generates WireGuard configuration files for the Private Internet Access VPN service. This allows you to take advantage of the WireGuard protocol without relying on PIA's proprietary client.
+This fork generates a Windows-importable WireGuard config while keeping TLS verification enabled. It no longer uses `requests_toolbelt` or the old Python `HostHeaderSSLAdapter`.
 
-This was created by reverse engineering the [manual-connections](https://github.com/pia-foss/manual-connections) script released by PIA. At this stage, the tool is a quick and dirty attempt to get things working. It could break at any moment if PIA makes changes to their API.
+PIA's current official manual connection scripts get the account token from:
 
-pia-wg runs on both Windows and Linux.
+```
+https://www.privateinternetaccess.com/api/client/v2/token
+```
+
+This fork follows that model. The token request is not region-specific. The selected region is used only for the WireGuard `addKey` call, which is the call that chooses the server and tunnel endpoint.
+
+For the WireGuard API on Linux/macOS, this fork uses curl `--connect-to` so TLS verifies the real PIA server hostname while connecting to the specific server IP from PIA's live server list:
+
+```
+curl --connect-to "<wg_cn>:1337:<wg_ip>:1337" \
+     --cacert ca.rsa.4096.crt \
+     "https://<wg_cn>:1337/addKey?pt=<token>&pubkey=<publickey>"
+```
+
+On Windows, the built-in Schannel curl can reject PIA's private CA or revocation status even when `--cacert` is supplied. To avoid that noisy path during normal use, this fork uses Python/OpenSSL first for the selected WireGuard endpoint, with the same TCP target IP, SNI hostname, and bundled PIA CA verification. curl remains available as a fallback. It does not use `verify=False`.
+
+The token request uses Python `requests` against PIA's public token endpoint so the PIA password is not placed in a curl command line.
+
+## Configuration
+Create a `.env` file in this directory:
+
+```
+PIA_user=your_pia_username
+PIA_pass=your_pia_password
+region=US Montana
+```
+
+`region` must match a PIA region name from the live server list. A unique partial name such as `Montana` can also work when it matches only one region.
+
+No `.env` file is included in this clean fork.
 
 ## Windows
-* Install the latest version of [Python 3](https://www.python.org/downloads/windows/)
-  * Select "Add Python to environment variables"
-* Install [WireGuard](https://www.wireguard.com/install/)
-
-Open a command prompt and navigate to the directory where you placed the pia-wg utility. The following commands will create a virtual Python environment, install the dependencies, and run the tool.
+Install Python 3 and WireGuard, then run:
 
 ```
 python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python generate-config.py
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe generate-config.py
 ```
 
-Follow the prompts. When finished, you can exit the virtual environment with the `deactivate` command.
+The script writes `PIA-wg.conf`, which can be imported into WireGuard for Windows.
 
-The script should generate a `.conf` file that can be imported into the WireGuard utility.
+## Linux
+Install dependencies, then run:
 
-## Linux (Debian/Ubuntu)
-Install dependencies, clone pia-wg project, and create a virual Python environment:
 ```
-sudo apt install git python3-venv wireguard openresolv
-git clone https://github.com/hsand/pia-wg.git
-cd pia-wg
+sudo apt install curl python3-venv wireguard
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-Run the tool, and follow the prompts
-```
 python3 generate-config.py
 ```
 
-Copy the `.conf` file to `/etc/wireguard/`, and start the interface
+## Server List
+The script fetches PIA's live server list from:
+
 ```
-sudo cp PIA-Iceland-1605054556.conf /etc/wireguard/wg0.conf
-sudo wg-quick up wg0
+https://serverlist.piaservers.net/vpninfo/servers/v6
 ```
 
-You can shut down the interface with `sudo wg-quick down wg0`
+The bundled `piaservers_v6.json` is only a fallback cache if the live list cannot be fetched. Each successful live fetch updates that cache atomically. To refresh it manually, download the first JSON line from the same URL and save it as `piaservers_v6.json`.
 
-## Check everything is working
-Visit https://dnsleaktest.com/ to see your new IP and check for DNS leaks.
+See `NOTES.md` for implementation notes and fork maintenance details.
+
+## Troubleshooting
+If `curl not found` appears, install curl or ensure it is on PATH. Modern Windows 10/11 installs include `curl.exe` by default.
+
+If login fails, confirm `PIA_user` and `PIA_pass`. The password and token are not logged or written to the generated config.
+
+If all WireGuard endpoints fail for the selected region, the script fails instead of using another region. That is intentional: the generated config should represent the selected location.
+
+If certificate errors occur, refresh `ca.rsa.4096.crt` from PIA's official manual-connections repo.
+
+The script also refreshes `ca.rsa.4096.crt` automatically from PIA's official manual-connections repo when the local copy is older than 183 days, or after all selected WireGuard endpoints fail with certificate-side errors. If that refresh fails, the current local certificate remains in use.
+
+Do not use `verify=False`.
