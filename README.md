@@ -1,6 +1,6 @@
-# pia-wg fork for 2026 compatibility
+# pia-wg Working fork 
 
-The original project got archived when it stopped working so I updated it for current compatibility
+The original project got archived when it stopped working so I updated it for current compatibility and it works as of (05/2026)
 
 
 A WireGuard configuration utility for Private Internet Access.
